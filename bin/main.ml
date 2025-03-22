@@ -5,6 +5,7 @@ type expression =
   | Const of int
   | Add of expression * expression
   | Mul of expression * expression
+  | Pow of expression * expression
 
 let temp = Add (Mul (Const 2, Var "x"), Var "y")
 
@@ -76,7 +77,6 @@ let rec index l i =
 let rec range a b = if a > b then [] else a :: range (a + 1) b
 let ( -- ) a b = range a b
 
-
 (** take char list and tokenize to token list *)
 let rec lex inp =
   match second_t (lexwhile space inp) with
@@ -94,30 +94,18 @@ let rec lex inp =
 let rec forall f xs =
   match xs with x :: [] -> f x | x :: xs_ -> f x && forall f xs_ | [] -> false
 
+(** parse algebra expression the grammar BNF-form: expression -> juxta juxta +
+    expression juxta -> production production " " juxta production -> atom atom
+    * production atom -> (expression) Const Val
 
-(** parse algebra expression
-the grammar BNF-form:
-expression -> juxta
-              juxta + expression
-juxta      -> production
-              production " " juxta
-production -> atom
-              atom * production
-atom       -> (expression)
-              Const
-              Val
+    a -> a b "s" a b s (b s (b s (b s (a)))) the infix operator is
+    right-associative in the BNF-form
 
-a -> a
-     b "s" a
-b s (b s (b s (b s (a))))
-the infix operator is right-associative in the BNF-form
+    the operators form BNF is increasing poriority, + " " *. So atom parse first
+    then productions then summations.
 
-the operators form BNF is increasing poriority, + " " *.
-So atom parse first then productions then summations.
-
-Perhaps there is another way to implement juxtapostion --
-modify the lex to produce " " operator
-*)
+    Perhaps there is another way to implement juxtapostion -- modify the lex to
+    produce " " operator *)
 let rec parse_expression i =
   match parse_juxta i with
   | e1, "+" :: i1 ->
@@ -136,10 +124,17 @@ and parse_juxta i =
       | _ -> (e1, i1))
 
 and parse_product i =
-  match parse_atom i with
+  match parse_pow i with
   | e1, "*" :: i1 ->
       let e2, i2 = parse_product i1 in
       (Mul (e1, e2), i2)
+  | e1, i1 -> (e1, i1)
+
+and parse_pow i =
+  match parse_atom i with
+  | e1, "^" :: i1 ->
+      let e2, i2 = parse_pow i1 in
+      (Pow (e1, e2), i2)
   | e1, i1 -> (e1, i1)
 
 and parse_atom i =
@@ -208,6 +203,7 @@ let rec string_of_exp e =
   | Const n -> string_of_int n
   | Add (e1, e2) -> "(" ^ string_of_exp e1 ^ " + " ^ string_of_exp e2 ^ ")"
   | Mul (e1, e2) -> "(" ^ string_of_exp e1 ^ " * " ^ string_of_exp e2 ^ ")"
+  | Pow (e1, e2) -> "(" ^ string_of_exp e1 ^ " ^ " ^ string_of_exp e2 ^ ")"
 
 let rec string_of_exp pr e =
   match e with
@@ -219,3 +215,11 @@ let rec string_of_exp pr e =
   | Mul (e1, e2) ->
       let str = string_of_exp 5 e1 ^ " * " ^ string_of_exp 4 e2 in
       if pr > 4 then "(" ^ str ^ ")" else str
+  | Pow (e1, e2) ->
+      let str = string_of_exp 7 e1 ^ " ^ " ^ string_of_exp 6 e2 in
+      if pr > 6 then "(" ^ str ^ ")" else str
+
+(*
+the most complicated test case:
+string_of_exp 0 @@ default_parser "b5^(10 kk2) + x_1 y_2 z (1 + 3 x + 2y^xy k)";;
+*)
