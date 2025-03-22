@@ -4,6 +4,7 @@ type expression =
   | Var of string
   | Const of int
   | Add of expression * expression
+  | Sub of expression * expression
   | Mul of expression * expression
   | Pow of expression * expression
 
@@ -94,25 +95,52 @@ let rec lex inp =
 let rec forall f xs =
   match xs with x :: [] -> f x | x :: xs_ -> f x && forall f xs_ | [] -> false
 
-(** parse algebra expression the grammar BNF-form: expression -> juxta juxta +
-    expression juxta -> production production " " juxta production -> atom atom
-    * production atom -> (expression) Const Val
+(** parse algebra expression the grammar BNF-form:
+expression -> sub
+            | sub + expression
+sub        -> juxta
+            | sub - juxta
+juxta      -> production
+            | production " " juxta
+production -> pow
+            | pow * production
+pow        -> atom
+            | atom ^ pow
+atom       -> (expression)
+            | Const
+            | Val
 
-    a -> a b "s" a b s (b s (b s (b s (a)))) the infix operator is
-    right-associative in the BNF-form
+a -> a
+    | b "s" a
+b s (b s (b s (b s (a))))
+the infix operator is right-associative in the BNF-form
 
-    the operators form BNF is increasing poriority, + " " *. So atom parse first
-    then productions then summations.
+a -> a
+    | a "s" b
+(((a s b) s b) s b) s b
+the infix operator is left-associative in the BNF-form
 
-    Perhaps there is another way to implement juxtapostion -- modify the lex to
-    produce " " operator *)
+the operators form BNF is increasing poriority, + - " " * ^ (). So atom parse first
+then productions then summations.
+
+Perhaps there is another way to implement juxtapostion -- modify the lex to
+produce " " operator *)
+[@@ocamlformat "wrap-comments=false"]
 let rec parse_expression i =
-  match parse_juxta i with
+  match parse_sub i with
   | e1, "+" :: i1 ->
       let e2, i2 = parse_expression i1 in
       (Add (e1, e2), i2)
+  | e1, "-" :: i1 ->
+    let e2, i2 = parse_expression i1 in
+      (Sub (e1, e2), i2)
   | e1, i1 -> (e1, i1)
-
+and parse_sub i =
+  match parse_juxta i with
+  | e1, "-" :: i1 ->
+      let e2, i2 = parse_juxta i1 in
+      (Sub (e1, e2), i2)
+  | e1, i1 -> (e1, i1)
 and parse_juxta i =
   match parse_product i with
   | e1, [] -> (e1, [])
@@ -202,6 +230,7 @@ let rec string_of_exp e =
   | Var s -> s
   | Const n -> string_of_int n
   | Add (e1, e2) -> "(" ^ string_of_exp e1 ^ " + " ^ string_of_exp e2 ^ ")"
+  | Sub (e1, e2) -> "(" ^ string_of_exp e1 ^ " - " ^ string_of_exp e2 ^ ")"
   | Mul (e1, e2) -> "(" ^ string_of_exp e1 ^ " * " ^ string_of_exp e2 ^ ")"
   | Pow (e1, e2) -> "(" ^ string_of_exp e1 ^ " ^ " ^ string_of_exp e2 ^ ")"
 
@@ -212,14 +241,17 @@ let rec string_of_exp pr e =
   | Add (e1, e2) ->
       let str = string_of_exp 3 e1 ^ " + " ^ string_of_exp 2 e2 in
       if pr > 2 then "(" ^ str ^ ")" else str
-  | Mul (e1, e2) ->
-      let str = string_of_exp 5 e1 ^ " * " ^ string_of_exp 4 e2 in
+  | Sub (e1, e2) ->
+      let str = string_of_exp 4 e1 ^ " - " ^ string_of_exp 5 e2 in
       if pr > 4 then "(" ^ str ^ ")" else str
-  | Pow (e1, e2) ->
-      let str = string_of_exp 7 e1 ^ " ^ " ^ string_of_exp 6 e2 in
+  | Mul (e1, e2) ->
+      let str = string_of_exp 7 e1 ^ " * " ^ string_of_exp 6 e2 in
       if pr > 6 then "(" ^ str ^ ")" else str
+  | Pow (e1, e2) ->
+      let str = string_of_exp 9 e1 ^ " ^ " ^ string_of_exp 8 e2 in
+      if pr > 8 then "(" ^ str ^ ")" else str
 
 (*
 the most complicated test case:
-string_of_exp 0 @@ default_parser "b5^(10 kk2) + x_1 y_2 z (1 + 3 x + 2y^xy k)";;
+string_of_exp 0 @@ default_parser "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^bb k)";;
 *)
