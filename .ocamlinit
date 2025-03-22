@@ -1,0 +1,9 @@
+(* #require "camlp5";;
+#load "camlp5o.cma";; *)
+
+#use "bin/main.ml"
+
+(* #trace parse_atom;;
+#trace parse_product;;
+#trace parse_juxta;;
+#trace parse_expression;; *)
