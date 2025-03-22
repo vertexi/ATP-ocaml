@@ -7,6 +7,7 @@ type expression =
   | Sub of expression * expression
   | Mul of expression * expression
   | Pow of expression * expression
+  | Neg of expression
 
 let temp = Add (Mul (Const 2, Var "x"), Var "y")
 
@@ -95,7 +96,7 @@ let rec lex inp =
 let rec forall f xs =
   match xs with x :: [] -> f x | x :: xs_ -> f x && forall f xs_ | [] -> false
 
-(** parse algebra expression the grammar BNF-form:
+(* parse algebra expression the grammar BNF-form:
 expression -> sub
             | sub + expression
 sub        -> juxta
@@ -104,8 +105,10 @@ juxta      -> production
             | production " " juxta
 production -> pow
             | pow * production
-pow        -> atom
-            | atom ^ pow
+pow        -> neg
+            | neg ^ pow
+neg        -> atom
+            | - neg
 atom       -> (expression)
             | Const
             | Val
@@ -120,6 +123,8 @@ a -> a
 (((a s b) s b) s b) s b
 the infix operator is left-associative in the BNF-form
 
+left-associative is like lex process 'longest possible pattern'
+
 the operators form BNF is increasing poriority, + - " " * ^ (). So atom parse first
 then productions then summations.
 
@@ -132,15 +137,14 @@ let rec parse_expression i =
       let e2, i2 = parse_expression i1 in
       (Add (e1, e2), i2)
   | e1, "-" :: i1 ->
-    let e2, i2 = parse_expression i1 in
+    let e2, i2 = parse_juxta i1 in
       (Sub (e1, e2), i2)
   | e1, i1 -> (e1, i1)
-and parse_sub i =
-  match parse_juxta i with
-  | e1, "-" :: i1 ->
-      let e2, i2 = parse_juxta i1 in
-      (Sub (e1, e2), i2)
+and parse_sub_i i =
+  match i with
+  | e1, "-"::tokens_ -> let e2, i2 = parse_juxta tokens_ in parse_sub_i (Sub (e1, e2), i2)
   | e1, i1 -> (e1, i1)
+and parse_sub i = parse_sub_i @@ parse_juxta i
 and parse_juxta i =
   match parse_product i with
   | e1, [] -> (e1, [])
@@ -159,12 +163,15 @@ and parse_product i =
   | e1, i1 -> (e1, i1)
 
 and parse_pow i =
-  match parse_atom i with
+  match parse_neg i with
   | e1, "^" :: i1 ->
       let e2, i2 = parse_pow i1 in
       (Pow (e1, e2), i2)
   | e1, i1 -> (e1, i1)
-
+and parse_neg i =
+  match parse_atom i with
+  | Var "-", i1 -> let e2, i2 = parse_neg i1 in (Neg(e2), i2)
+  | e1, i1 -> (e1, i1)
 and parse_atom i =
   match i with
   | [] -> raise @@ Failure "parse empty string"
@@ -233,6 +240,7 @@ let rec string_of_exp e =
   | Sub (e1, e2) -> "(" ^ string_of_exp e1 ^ " - " ^ string_of_exp e2 ^ ")"
   | Mul (e1, e2) -> "(" ^ string_of_exp e1 ^ " * " ^ string_of_exp e2 ^ ")"
   | Pow (e1, e2) -> "(" ^ string_of_exp e1 ^ " ^ " ^ string_of_exp e2 ^ ")"
+  | Neg (e1) -> "(-" ^ string_of_exp e1 ^ ")"
 
 let rec string_of_exp pr e =
   match e with
@@ -250,8 +258,13 @@ let rec string_of_exp pr e =
   | Pow (e1, e2) ->
       let str = string_of_exp 9 e1 ^ " ^ " ^ string_of_exp 8 e2 in
       if pr > 8 then "(" ^ str ^ ")" else str
+  | Neg (e1) ->
+      match e1 with
+      | Var _
+      | Neg _ -> "-" ^ string_of_exp 0 e1 ^ ""
+      | _ -> "-(" ^ string_of_exp 0 e1 ^ ")"
 
 (*
 the most complicated test case:
-string_of_exp 0 @@ default_parser "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^bb k)";;
+string_of_exp @@ default_parser "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -( b - -d) k)";;
 *)
