@@ -3,7 +3,7 @@
 
 #use "bin/main.ml"
 
-(* #trace parse_atom;;
+#trace parse_atom;;
 #trace parse_product;;
 #trace parse_juxta;;
-#trace parse_expression;; *)
+#trace parse_expression;;
