@@ -9,3 +9,6 @@
 #trace parse_expression;;
 #trace parse_pow;;
 #trace parse_sub;; *)
+
+#trace simplify1;;
+#trace simplify;;

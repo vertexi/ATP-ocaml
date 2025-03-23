@@ -11,22 +11,33 @@ type expression =
 
 let temp = Add (Mul (Const 2, Var "x"), Var "y")
 
-let simplify1 expr =
+let rec simplify1 expr =
   match expr with
   | Add (Const m, Const n) -> Const (m + n)
-  | Mul (Const m, Const n) -> Const (m * n)
   | Add (Const 0, x) -> x
   | Add (x, Const 0) -> x
+  | Add (x1, x2) when x1 = Neg x2 || Neg x1 = x2 -> Const 0
+  | Mul (Const m, Const n) -> Const (m * n)
   | Mul (Const 0, _) -> Const 0
   | Mul (_, Const 0) -> Const 0
   | Mul (Const 1, x) -> x
   | Mul (x, Const 1) -> x
+  | Mul (x1, x2) when x1 = x2 -> Pow(x1, Const 2)
+  | Mul (x1, Pow(x2, e)) when x1 = x2 -> Pow(x1, simplify1 @@ Add(e, Const 1))
+  | Sub (x1, x2) when x1 = x2 -> Const 0
+  | Sub (x, Const 0) -> x
+  | Sub (Const 0, x) -> Neg x
+  | Pow (x, Const 1) -> x
+  | Neg (Neg x) -> x
   | _ -> expr
 
 let rec simplify expr =
   match expr with
   | Add (e1, e2) -> simplify1 (Add (simplify e1, simplify e2))
   | Mul (e1, e2) -> simplify1 (Mul (simplify e1, simplify e2))
+  | Sub (e1, e2) -> simplify1 (Sub (simplify e1, simplify e2))
+  | Pow (e1, e2) -> simplify1 (Pow (simplify e1, simplify e2))
+  | Neg e -> simplify1 (Neg (simplify e))
   | _ -> simplify1 expr
 
 let e = Add (Const 12, Mul (Const 3, Add (Const 1, Mul (Const 0, Var "x"))))
@@ -95,7 +106,6 @@ let rec lex inp =
 
 let rec forall f xs =
   match xs with x :: [] -> f x | x :: xs_ -> f x && forall f xs_ | [] -> false
-
 (* parse algebra expression the grammar BNF-form:
 expression -> sub
             | sub + expression
@@ -131,20 +141,26 @@ then productions then summations.
 Perhaps there is another way to implement juxtapostion -- modify the lex to
 produce " " operator *)
 [@@ocamlformat "wrap-comments=false"]
+
 let rec parse_expression i =
   match parse_sub i with
   | e1, "+" :: i1 ->
       let e2, i2 = parse_expression i1 in
       (Add (e1, e2), i2)
   | e1, "-" :: i1 ->
-    let e2, i2 = parse_juxta i1 in
+      let e2, i2 = parse_juxta i1 in
       (Sub (e1, e2), i2)
   | e1, i1 -> (e1, i1)
+
 and parse_sub_i i =
   match i with
-  | e1, "-"::tokens_ -> let e2, i2 = parse_juxta tokens_ in parse_sub_i (Sub (e1, e2), i2)
+  | e1, "-" :: tokens_ ->
+      let e2, i2 = parse_juxta tokens_ in
+      parse_sub_i (Sub (e1, e2), i2)
   | e1, i1 -> (e1, i1)
+
 and parse_sub i = parse_sub_i @@ parse_juxta i
+
 and parse_juxta i =
   match parse_product i with
   | e1, [] -> (e1, [])
@@ -168,10 +184,14 @@ and parse_pow i =
       let e2, i2 = parse_pow i1 in
       (Pow (e1, e2), i2)
   | e1, i1 -> (e1, i1)
+
 and parse_neg i =
   match parse_atom i with
-  | Var "-", i1 -> let e2, i2 = parse_neg i1 in (Neg(e2), i2)
+  | Var "-", i1 ->
+      let e2, i2 = parse_neg i1 in
+      (Neg e2, i2)
   | e1, i1 -> (e1, i1)
+
 and parse_atom i =
   match i with
   | [] -> raise @@ Failure "parse empty string"
@@ -240,7 +260,7 @@ let rec string_of_exp e =
   | Sub (e1, e2) -> "(" ^ string_of_exp e1 ^ " - " ^ string_of_exp e2 ^ ")"
   | Mul (e1, e2) -> "(" ^ string_of_exp e1 ^ " * " ^ string_of_exp e2 ^ ")"
   | Pow (e1, e2) -> "(" ^ string_of_exp e1 ^ " ^ " ^ string_of_exp e2 ^ ")"
-  | Neg (e1) -> "(-" ^ string_of_exp e1 ^ ")"
+  | Neg e1 -> "(-" ^ string_of_exp e1 ^ ")"
 
 let rec string_of_exp pr e =
   match e with
@@ -258,11 +278,10 @@ let rec string_of_exp pr e =
   | Pow (e1, e2) ->
       let str = string_of_exp 9 e1 ^ " ^ " ^ string_of_exp 8 e2 in
       if pr > 8 then "(" ^ str ^ ")" else str
-  | Neg (e1) ->
+  | Neg e1 -> (
       match e1 with
-      | Var _
-      | Neg _ -> "-" ^ string_of_exp 0 e1 ^ ""
-      | _ -> "-(" ^ string_of_exp 0 e1 ^ ")"
+      | Var _ | Neg _ -> "-" ^ string_of_exp 0 e1 ^ ""
+      | _ -> "-(" ^ string_of_exp 0 e1 ^ ")")
 
 (*
 the most complicated test case:
