@@ -17,28 +17,54 @@ let rec simplify1 expr =
   | Add (Const 0, x) -> x
   | Add (x, Const 0) -> x
   | Add (x1, x2) when x1 = Neg x2 || Neg x1 = x2 -> Const 0
+  | Add (x2, Mul (Const n, x1)) when x1 = x2 -> simplify1 @@ Mul (x1, Const (n + 1))
+  | Add (Add (x1, x2), x3) -> simplify1 @@ Add (x1, simplify1 @@ Add (x2, x3))
   | Mul (Const m, Const n) -> Const (m * n)
   | Mul (Const 0, _) -> Const 0
   | Mul (_, Const 0) -> Const 0
   | Mul (Const 1, x) -> x
   | Mul (x, Const 1) -> x
-  | Mul (x1, x2) when x1 = x2 -> Pow(x1, Const 2)
-  | Mul (x1, Pow(x2, e)) when x1 = x2 -> Pow(x1, simplify1 @@ Add(e, Const 1))
-  | Sub (x1, x2) when x1 = x2 -> Const 0
+  | Mul (x, Const n) -> Mul (Const n, simplify1 @@ x)
+  | Mul (Add (x1, x2), Add (x3, x4)) ->
+      simplify1 @@ Add (Mul (x1, Add (x3, x4)), Mul (x2, Add (x3, x4)))
+  | Mul (x1, Add (x2, x3)) -> simplify1 @@ Add (Mul (x1, x2), Mul (x1, x3))
+  | Mul (x1, x2) when x1 = x2 -> Pow (x1, Const 2)
+  | Mul (x1, Pow (x2, e)) when x1 = x2 -> Pow (x1, simplify1 @@ Add (e, Const 1))
   | Sub (x, Const 0) -> x
   | Sub (Const 0, x) -> Neg x
+  | Sub (x1, x2) when x1 = x2 -> Const 0
+  | Sub (x1, x2) -> Add (x1, Neg x2)
   | Pow (x, Const 1) -> x
-  | Neg (Neg x) -> x
+  | Neg (Const 0) -> Const 0
+  | Neg (Const n) -> Const (-1 * n)
+  | Neg (Neg x) -> simplify1 x
   | _ -> expr
 
 let rec simplify expr =
-  match expr with
+  let expr_ =
+    match expr with
+    | Add (e1, e2) -> simplify1 (Add (e1, e2))
+    | Mul (e1, e2) -> simplify1 (Mul (e1, e2))
+    | Sub (e1, e2) -> simplify1 (Sub (e1, e2))
+    | Pow (e1, e2) -> simplify1 (Pow (e1, e2))
+    | Neg e -> simplify1 (Neg e)
+    | Const n -> Const n
+    | Var v -> Var v
+  in
+  match expr_ with
   | Add (e1, e2) -> simplify1 (Add (simplify e1, simplify e2))
   | Mul (e1, e2) -> simplify1 (Mul (simplify e1, simplify e2))
   | Sub (e1, e2) -> simplify1 (Sub (simplify e1, simplify e2))
   | Pow (e1, e2) -> simplify1 (Pow (simplify e1, simplify e2))
   | Neg e -> simplify1 (Neg (simplify e))
-  | _ -> simplify1 expr
+  | Const n -> Const n
+  | Var v -> Var v
+
+(* complicated simplify cases:
+simplify  @@ default_parser "(x*x*x - x^3) - (x*x*x - x^3)";;
+simplify  @@ default_parser "(x*x*x - x^3)*0";;
+simplify  @@ default_parser "x - - - - - x";;
+*)
 
 let e = Add (Const 12, Mul (Const 3, Add (Const 1, Mul (Const 0, Var "x"))))
 
