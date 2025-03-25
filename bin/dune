@@ -1,5 +1,5 @@
 (executable
  (public_name ocamlplay)
  (name main)
- (libraries ocamlplay camlp5.pa_o camlp5 camlp5.quotations)
+ (libraries ocamlplay)
 )

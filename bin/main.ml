@@ -17,7 +17,8 @@ let rec simplify1 expr =
   | Add (Const 0, x) -> x
   | Add (x, Const 0) -> x
   | Add (x1, x2) when x1 = Neg x2 || Neg x1 = x2 -> Const 0
-  | Add (x2, Mul (Const n, x1)) when x1 = x2 -> simplify1 @@ Mul (x1, Const (n + 1))
+  | Add (x2, Mul (Const n, x1)) when x1 = x2 ->
+      simplify1 @@ Mul (x1, Const (n + 1))
   | Add (Add (x1, x2), x3) -> simplify1 @@ Add (x1, simplify1 @@ Add (x2, x3))
   | Mul (Const m, Const n) -> Const (m * n)
   | Mul (Const 0, _) -> Const 0
@@ -99,6 +100,12 @@ let test x = match x with x when x > 10 -> 10 | _ -> x
 
 let first_l l =
   match l with l_ :: _ -> l_ | [] -> raise @@ Failure "first: empty l"
+
+let tail_l l =
+  match l with _ :: ls -> ls | [] -> raise @@ Failure "tail_l: empty l"
+
+let hl l = first_l l
+let tl l = tail_l l
 
 (** get the first element from tuple*)
 let first_t t = match t with first, _ -> first
@@ -247,6 +254,9 @@ let make_parser pfn s =
   | x, [] -> x
   | _ -> raise @@ Failure "unparse string exists"
 
+let make_parser_debug pfn s =
+  match s |> explode |> lex |> pfn with x, [] -> (x, []) | x, l -> (x, l)
+
 let default_parser = make_parser parse_expression
 
 (* 
@@ -313,3 +323,176 @@ let rec string_of_exp pr e =
 the most complicated test case:
 string_of_exp @@ default_parser "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -( b - -d) k)";;
 *)
+
+type 'a formula =
+  | False
+  | True
+  | Atom of 'a
+  | Not of 'a formula
+  | And of 'a formula * 'a formula
+  | Or of 'a formula * 'a formula
+  | Imp of 'a formula * 'a formula
+  | Iff of 'a formula * 'a formula
+  | Forall of string * 'a formula
+  | Exists of string * 'a formula
+
+(* ------------------------------------------------------------------------- *)
+(* General parsing of iterated infixes.                                      *)
+(* ------------------------------------------------------------------------- *)
+
+type prop = P of string
+
+let pname (P s) = s
+
+(* general infix operator parse constructor *)
+let rec parse_ginfix opsym opupdate sof
+    (subparser : string list -> prop formula * string list) (inp : string list)
+    =
+  let e1, inp1 = subparser inp in
+  if inp1 <> [] && hl inp1 = opsym then
+    parse_ginfix opsym opupdate (opupdate sof e1) subparser (tl inp1)
+  else (sof e1, inp1)
+
+let parse_left_infix opsym opcon =
+  parse_ginfix opsym (fun f e1 e2 -> opcon (f e1, e2)) (fun x -> x)
+
+let parse_right_infix (opsym : string)
+    (opcon : prop formula * prop formula -> prop formula) =
+  parse_ginfix opsym (fun f e1 e2 -> f (opcon (e1, e2))) (fun x -> x)
+
+let parse_list opsym =
+  parse_ginfix opsym (fun f e1 e2 -> f e1 @ [ e2 ]) (fun x -> [ x ])
+
+let papply f (ast, rest) = (f ast, rest)
+let nextin inp tok = inp <> [] && hl inp = tok
+
+let parse_bracketed subparser cbra inp =
+  let ast, rest = subparser inp in
+  if nextin rest cbra then (ast, tl rest)
+  else failwith "Closing bracket expected"
+
+let rec parse_atomic_formula (ifn, afn) vs inp =
+  match inp with
+  | [] -> failwith "formula expected"
+  | "false" :: rest -> (False, rest)
+  | "true" :: rest -> (True, rest)
+  | "(" :: rest -> (
+      try ifn vs inp
+      with Failure _ -> parse_bracketed (parse_formula (ifn, afn) vs) ")" rest)
+  | "~" :: rest ->
+      papply (fun p -> Not p) (parse_atomic_formula (ifn, afn) vs rest)
+  | "forall" :: x :: rest ->
+      parse_quant (ifn, afn) (x :: vs) (fun (x, p) -> Forall (x, p)) x rest
+  | "exists" :: x :: rest ->
+      parse_quant (ifn, afn) (x :: vs) (fun (x, p) -> Exists (x, p)) x rest
+  | _ -> afn vs inp
+
+and parse_quant (ifn, afn) vs qcon x inp =
+  match inp with
+  | [] -> failwith "Body of quantified term expected"
+  | y :: rest ->
+      papply
+        (fun fm -> qcon (x, fm))
+        (if y = "." then parse_formula (ifn, afn) vs rest
+         else parse_quant (ifn, afn) (y :: vs) qcon y rest)
+
+and parse_formula (ifn, afn) vs inp =
+  parse_right_infix "<=>"
+    (fun (p, q) -> Iff (p, q))
+    (parse_right_infix "==>"
+       (fun (p, q) -> Imp (p, q))
+       (parse_right_infix "\\/"
+          (fun (p, q) -> Or (p, q))
+          (parse_right_infix "/\\"
+             (fun (p, q) -> And (p, q))
+             (parse_atomic_formula (ifn, afn) vs))))
+    inp
+
+let parse_propvar vs inp =
+  match inp with
+  | p :: oinp when p <> "(" -> (Atom (P p), oinp)
+  | _ -> failwith "parse_propvar"
+
+let parse_prop_formula =
+  make_parser (parse_formula ((fun _ _ -> failwith ""), parse_propvar) [])
+
+let default_parser = parse_prop_formula
+
+open Format
+
+let bracket p n f x y =
+  if p then print_string "(" else ();
+  open_box n;
+  f x y;
+  close_box ();
+  if p then print_string ")" else ()
+
+let rec strip_quant fm =
+  match fm with
+  | Forall (x, (Forall (y, p) as yp)) | Exists (x, (Exists (y, p) as yp)) ->
+      let xs, q = strip_quant yp in
+      (x :: xs, q)
+  | Forall (x, p) | Exists (x, p) -> ([ x ], p)
+  | _ -> ([], fm)
+
+let rec do_list f l =
+  match l with
+  | [] -> ()
+  | h :: t ->
+      f h;
+      do_list f t
+
+let print_formula pfn =
+  let rec print_formula pr fm =
+    match fm with
+    | False -> print_string "false"
+    | True -> print_string "true"
+    | Atom pargs -> pfn pr pargs
+    | Not p -> bracket (pr > 10) 1 (print_prefix 10) "~" p
+    | And (p, q) -> bracket (pr > 8) 0 (print_infix 8 "/\\") p q
+    | Or (p, q) -> bracket (pr > 6) 0 (print_infix 6 "\\/") p q
+    | Imp (p, q) -> bracket (pr > 4) 0 (print_infix 4 "==>") p q
+    | Iff (p, q) -> bracket (pr > 2) 0 (print_infix 2 "<=>") p q
+    | Forall (x, p) -> bracket (pr > 0) 2 print_qnt "forall" (strip_quant fm)
+    | Exists (x, p) -> bracket (pr > 0) 2 print_qnt "exists" (strip_quant fm)
+  and print_qnt qname (bvs, bod) =
+    print_string qname;
+    do_list
+      (fun v ->
+        print_string " ";
+        print_string v)
+      bvs;
+    print_string ".";
+    print_space ();
+    open_box 0;
+    print_formula 0 bod;
+    close_box ()
+  and print_prefix newpr sym p =
+    print_string sym;
+    print_formula (newpr + 1) p
+  and print_infix newpr sym p q =
+    print_formula (newpr + 1) p;
+    print_string (" " ^ sym);
+    print_space ();
+    print_formula newpr q
+  in
+  print_formula 0
+
+let print_qformula pfn fm =
+  open_box 0;
+  print_string "<<";
+  open_box 0;
+  print_formula pfn fm;
+  close_box ();
+  print_string ">>";
+  close_box ()
+
+let mk_and p q = And (p, q)
+and mk_or p q = Or (p, q)
+and mk_imp p q = Imp (p, q)
+and mk_iff p q = Iff (p, q)
+and mk_forall x p = Forall (x, p)
+and mk_exists x p = Exists (x, p)
+
+let print_propvar prec p = print_string (pname p)
+let print_prop_formula = print_qformula print_propvar

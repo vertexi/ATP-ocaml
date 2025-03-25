@@ -10,5 +10,12 @@
 #trace parse_pow;;
 #trace parse_sub;; *)
 
-#trace simplify1;;
-#trace simplify;;
+(* #trace simplify1;;
+#trace simplify;; *)
+
+(* #trace parse_formula;;
+#trace parse_quant;;
+#trace parse_atomic_formula;;
+#trace parse_bracketed;;
+#trace parse_ginfix
+#trace parse_right_infix *)
