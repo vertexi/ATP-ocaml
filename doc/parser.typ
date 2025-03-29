@@ -173,3 +173,55 @@ let parse_bracketed subparser cbra inp =
   if nextin rest cbra then (ast, tl rest)
   else failwith "Closing bracket expected"
 ```
+
+顶层的parser代码如下所示，在`parse_formula`中，不同的二元运算符按优先级从低到高嵌套，均为右结合。
+
+```ocaml
+let rec parse_atomic_formula (ifn, afn) vs inp =
+  match inp with
+  | [] -> failwith "formula expected"
+  | "false" :: rest -> (False, rest)
+  | "true" :: rest -> (True, rest)
+  | "(" :: rest -> (
+      try ifn vs inp
+      with Failure _ -> parse_bracketed (parse_formula (ifn, afn) vs) ")" rest)
+  | "~" :: rest ->
+      papply (fun p -> Not p) (parse_atomic_formula (ifn, afn) vs rest)
+  | "forall" :: x :: rest ->
+      parse_quant (ifn, afn) (x :: vs) (fun (x, p) -> Forall (x, p)) x rest
+  | "exists" :: x :: rest ->
+      parse_quant (ifn, afn) (x :: vs) (fun (x, p) -> Exists (x, p)) x rest
+  | _ -> afn vs inp
+
+and parse_quant (ifn, afn) vs qcon x inp =
+  match inp with
+  | [] -> failwith "Body of quantified term expected"
+  | y :: rest ->
+      papply
+        (fun fm -> qcon (x, fm))
+        (if y = "." then parse_formula (ifn, afn) vs rest
+         else parse_quant (ifn, afn) (y :: vs) qcon y rest)
+
+and parse_formula (ifn, afn) vs inp =
+  parse_right_infix "<=>"
+    (fun (p, q) -> Iff (p, q))
+    (parse_right_infix "==>"
+       (fun (p, q) -> Imp (p, q))
+       (parse_right_infix "\\/"
+          (fun (p, q) -> Or (p, q))
+          (parse_right_infix "/\\"
+             (fun (p, q) -> And (p, q))
+             (parse_atomic_formula (ifn, afn) vs))))
+    inp
+```
+
+下面的代码实现了对所有可能的布尔变量组合表示式求值，对`ats`原子变量表遍历，每个变量要么true，要么false，`let v' t q = if q = p then t else v q in`这个实现了原子变量集赋值函数。`onallvaluations`最终会执行$2^n$次，实现所有排列组合表达式求解。
+
+```ocaml
+let rec onallvaluations evalformula v ats =
+  match ats with
+  | [] -> evalformula v
+  | p :: ps ->
+      let v' t q = if q = p then t else v q in
+      onallvaluations evalformula (v' false) ps && onallvaluations evalformula (v' true) ps
+```

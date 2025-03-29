@@ -487,6 +487,9 @@ let print_qformula pfn fm =
   print_string ">>";
   close_box ()
 
+let print_propvar prec p = print_string (pname p)
+let print_prop_formula = print_qformula print_propvar
+
 let mk_and p q = And (p, q)
 and mk_or p q = Or (p, q)
 and mk_imp p q = Imp (p, q)
@@ -494,5 +497,162 @@ and mk_iff p q = Iff (p, q)
 and mk_forall x p = Forall (x, p)
 and mk_exists x p = Exists (x, p)
 
-let print_propvar prec p = print_string (pname p)
-let print_prop_formula = print_qformula print_propvar
+let dest_iff fm =
+  match fm with Iff (p, q) -> (p, q) | _ -> failwith "dest_iff"
+
+let dest_and fm =
+  match fm with And (p, q) -> (p, q) | _ -> failwith "dest_iff"
+
+let rec dest_conjuncts fm =
+  match fm with
+  | And (p, q) -> dest_conjuncts p @ dest_conjuncts q
+  | _ -> [ fm ]
+
+let dest_or fm = match fm with Or (p, q) -> (p, q) | _ -> failwith "dest_or"
+
+let rec dest_disconjuncts fm =
+  match fm with
+  | Or (p, q) -> dest_disconjuncts p @ dest_disconjuncts q
+  | _ -> [ fm ]
+
+let dest_imp fm =
+  match fm with Imp (p, q) -> (p, q) | _ -> failwith "dest_imp"
+
+let antecedent fm = fst (dest_imp fm)
+let consequent fm = snd (dest_imp fm)
+
+let rec onatoms f fm =
+  match fm with
+  | Atom a -> f a
+  | Not p -> Not (onatoms f p)
+  | And (p, q) -> And (onatoms f p, onatoms f q)
+  | Or (p, q) -> Or (onatoms f p, onatoms f q)
+  | Imp (p, q) -> Imp (onatoms f p, onatoms f q)
+  | Iff (p, q) -> Iff (onatoms f p, onatoms f q)
+  | Forall (x, p) -> Forall (x, onatoms f p)
+  | Exists (x, p) -> Exists (x, onatoms f p)
+  | _ -> fm
+
+let rec overatoms f fm b =
+  match fm with
+  | Atom a -> f a b
+  | Not p -> overatoms f p b
+  | And (p, q) | Or (p, q) | Imp (p, q) | Iff (p, q) ->
+      overatoms f p (overatoms f q b)
+  | Forall (_, p) | Exists (_, p) -> overatoms f p b
+  | _ -> b
+
+let rec uniq l =
+  match l with
+  | x :: (y :: _ as t) ->
+      let t' = uniq t in
+      if compare x y = 0 then t' else if t' == t then l else x :: t'
+  | _ -> l
+
+let map f =
+  let rec mapf l =
+    match l with
+    | [] -> []
+    | x :: t ->
+        let y = f x in
+        y :: mapf t
+  in
+  mapf
+
+let rec merge ord l1 l2 =
+  match l1 with
+  | [] -> l2
+  | h1 :: t1 -> (
+      match l2 with
+      | [] -> l1
+      | h2 :: t2 ->
+          if ord h1 h2 then h1 :: merge ord t1 l2 else h2 :: merge ord l1 t2)
+
+let sort ord =
+  let rec mergepairs l1 l2 =
+    match (l1, l2) with
+    | [ s ], [] -> s
+    | l, [] -> mergepairs [] l
+    | l, [ s1 ] -> mergepairs (s1 :: l) []
+    | l, s1 :: s2 :: ss -> mergepairs (merge ord s1 s2 :: l) ss
+  in
+  fun l -> if l = [] then [] else mergepairs [] (map (fun x -> [ x ]) l)
+
+(* let setify =
+  let rec canonical lis =
+    match lis with
+    | x :: (y :: _ as rest) -> compare x y < 0 && canonical rest
+    | _ -> true
+  in
+  fun l ->
+    if canonical l then l else uniq (sort (fun x y -> compare x y <= 0) l) *)
+
+let setify x = List.sort_uniq (fun a b -> compare a b) x
+let atom_union f fm = setify (overatoms (fun a b -> f a @ b) fm [])
+
+let rec eval fm v =
+  match fm with
+  | True -> true
+  | False -> false
+  | Atom p -> v p
+  | Not p -> not (eval p v)
+  | And (p, q) -> eval p v && eval q v
+  | Or (p, q) -> eval p v || eval q v
+  | Imp (p, q) -> ( match eval p v with false -> true | true -> eval q v)
+  | Iff (p, q) -> eval p v = eval q v
+  | _ -> failwith "eval: not implemented"
+;;
+
+eval (default_parser "p /\\ q ==> q /\\ r") (fun fm ->
+    match fm with
+    | P "p" -> true
+    | P "q" -> false
+    | P "r" -> true
+    | _ -> failwith "unvalue")
+
+let atoms p = atom_union (fun x -> [ x ]) p;;
+
+"p /\\ q \\/ s ==> ~ p \\/ (r <=> s)" |> parse_prop_formula |> atoms
+
+let rec onallvaluations evalformula v ats =
+  match ats with
+  | [] -> evalformula v
+  | p :: ps ->
+      let v' t q = if q = p then t else v q in
+      onallvaluations evalformula (v' false) ps
+      && onallvaluations evalformula (v' true) ps
+
+let rec itlist f l b = match l with [] -> b | h :: t -> f h (itlist f t b)
+
+let print_truthtable fm =
+  let ats = atoms fm in
+  let width = itlist (fun a b -> max (String.length @@ pname a) b) ats 5 + 1 in
+  let fixw s = s ^ String.make (width - String.length s) ' ' in
+  let truthstring p = fixw (if p then "true" else "false") in
+  let mk_row v =
+    let lis = map (fun x -> truthstring (v x)) ats
+    and ans = truthstring (eval fm v) in
+    print_string (itlist ( ^ ) lis ("| " ^ ans));
+    print_newline ();
+    true
+  in
+  let separator = String.make ((width * List.length ats) + 9) '-' in
+  print_string (itlist (fun s t -> fixw (pname s) ^ t) ats "| formula");
+  print_newline ();
+  print_string separator;
+  print_newline ();
+  let _ = onallvaluations mk_row (fun _ -> false) ats in
+  print_string separator;
+  print_newline ()
+
+(* "p /\\ q" |> parse_prop_formula |> print_truthtable;; *)
+
+(* tautology *)
+(* "p /\\ q ==> p \\/ q" |> parse_prop_formula |> print_truthtable;; *)
+
+let tautology fm = onallvaluations (eval fm) (fun _ -> false) (atoms fm)
+let unsatisfiable fm = tautology @@ Not fm
+let satisfiable fm = not @@ unsatisfiable fm;;
+
+(* unsatifiable example *)
+"(p /\\ q) /\\ (~p /\\ q)" |> parse_prop_formula |> unsatisfiable
