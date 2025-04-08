@@ -11,54 +11,33 @@
 #import "@preview/mitex:0.2.4": *
 #assert.eq(mitex-convert("\alpha x"), "alpha  x ")
 
-#show heading: it => {
-  if it.level == 1 {
-    text(size: 24pt, it)
-    par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-  } else if it.level == 2 {
-    text(size: 20pt, it)
-    par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-  } else if it.level == 3 {
-    text(size: 18pt, it)
-    par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-  }
-}
-#set par(first-line-indent: 2em)
+// for shadow box
+#import "@preview/showybox:2.0.4": showybox
+
+#import "@preview/quick-maths:0.2.1": shorthands
+
+// #show: shorthands.with(
+//   ($+-$, $plus.minus$),
+//   ($|-$, math.tack),
+//   ($<=$, math.arrow.l.double), // Replaces '≤'
+// )
+
+// remove cjk space in line break
+#import "@preview/cjk-unbreak:0.1.0": *
+#show: remove-cjk-break-space
+
+#show heading.where(level: 1): it => text(size: 24pt, it)
+#show heading.where(level: 2): it => text(size: 20pt, it)
+#show heading.where(level: 3): it => text(size: 18pt, it)
+
+#set par(first-line-indent: (amount: 2em, all: true))
 #show image: it => {
   align(center, it)
-  v(-1.5em)
-  par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
 }
 
-// #show pagebreak: it => {
-//   it
-//   v(-1.5em)
-//   par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-// }
+#set page(paper: "a4", margin: 30pt, numbering: "1")
 
-#show math.equation: it => {
-  it
-  if it.block == true {
-    v(-1.5em)
-    par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-  }
-}
-
-#let mybnf(body) = {
-  bnf(body)
-  v(-1.5em)
-  par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-}
-
-#show raw.where(block: true): it => {
-  it
-  v(-1.5em)
-  par(leading: 1.5em)[#text(size: 0.0em)[#h(0.0em) placehold]]
-}
-
-#set page(paper: "a4", margin: 30pt)
-
-#set text(size: 16pt)
+#set text(size: 14pt)
 
 = Notes
 
@@ -66,7 +45,7 @@
 
 The grammar tree:
 
-#mybnf(
+#bnf(
   Prod(
     $a' "formular"$,
     delim: $→$,
@@ -225,3 +204,85 @@ let rec onallvaluations evalformula v ats =
       let v' t q = if q = p then t else v q in
       onallvaluations evalformula (v' false) ps && onallvaluations evalformula (v' true) ps
 ```
+
+If p ⇒ q is a tautology, i.e. any valuation that satisfies p also satisfies q, we say that q is a logical consequence of p. If p ⇔ q is a tautology, i.e. a valuation satisfies p if and only if it satisfies q, we say that p and q are logically equivalent. Many important tautologies naturally take this latter form, and trivially if p is a tautology then so is p ⇔ T.
+
+$p,q$逻辑等价就是$p<=>q$始终为真，即$p<=>q$为重言式。$p=>q$是重言式就意味着q是p的后果，两者有因果关系。
+
+== About Kepler Conjucture Proof
+
+=== Convex set
+
+#image("figs/convex-set.svg")
+
+如果$C subset.eq RR^n$，并且$forall x,y in C, {tau|tau = (1-lambda)x + lambda y, lambda in [0,1]} subset.eq C $，那么$C$是一个Convex set。
+
+=== Convex Hull
+
+最小能够包围住点集$C$的凸多边形就是凸包。凸包像是一根线紧绷围住点集。凸包多边形的边必须满足所有点集中的点在其一侧。
+
+#image("figs/convex-hull.svg")
+
+=== Voronoi Diagram
+
+#image(width: 50%, "figs/voronoi.svg")
+
+Voronoi 每个点是一个generater，生成一个Voronoi cell。两两相邻点之间画一条垂直平分线，去除不要的部分就是Voronoi cell。每一个 Voronoi cell 中的每一点都距离该 cell 所属的 generater 最近，换句话说 cell 中每一点和点集其它点的距离都比和 generater 的距离要长。
+这一属性在发电站选址有用。
+
+=== Delaunay Triangulation
+
+Delaunay triangulation(DT) 中每一个三角的外接圆中不含有其它点。当外接圆上有四个点时，DT不唯一。2D DT求解可以转化为将每个点映射到三维空间求凸包，然后再投影到二维（忽略坐标z），映射办法为保持x,y坐标不变，令$z=|(x,y)|^2$，其凸包多边形应为三角形，否则意味着二维上多点共圆，DT不唯一。
+
+DT 的性质是使三角化中三角形最小内角最大化。
+
+Delaunay triangulation(DT) 和 Voronoi diagram(VD) 是对偶关系，意味着一个VD都有DT和其对应，并且构成VD的每一个元素都有与之对应的DT中的元素。
+
+#grid(
+  columns: 2,
+  column-gutter: 5em,
+  image("assets/VT.png"), image("assets/VT-DT.png"),
+)
+
+VT中的面变成点，边变成边，点变成面。
+
+DT中每条边的垂直平分线的交点连成多边形就是VT，连接VT中每条边对应的两个点就是DT。
+
+
+== Thue's Theoreom (Circle Packing)
+
+#showybox(
+  footer-style: (
+    sep-thickness: 0pt,
+    align: left,
+    color: black,
+  ),
+  title: "Thue's Theoreom",
+  // footer: [
+
+  // ]
+)[
+  正六边形堆积是圆在平面上的最密堆积，其堆积密度为
+
+  $ pi / sqrt(12) approx 0.9069 $
+]
+
+欲证明此定理先定义堆积密度。在 Thomas C.Hales @halesCannonballsHoneycombs 的文献中 Kepler 猜想的三维球在空间中的堆积密度定义为：
+
+#showybox(
+  footer-style: (
+    sep-thickness: 0pt,
+    align: left,
+    color: black,
+  ),
+  title: "球堆积密度",
+  // footer: [
+
+  // ]
+)[
+  Density is the fraction of a region of space filled by the solid balls. If this region is *bounded*, this fraction is the ratio of the volume of the balls to the volume of the region. If any ball crosses the boundary of the region, only the part of the ball inside the region is used. If the region is *unbounded*, the density of the intersection of the region with a ball of radius R is calculated, and the density of the full region is defined as the lim sup over R.
+]
+
+
+
+#bibliography("bib.bib", style: "gb-7714-2015-numeric")
