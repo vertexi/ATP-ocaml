@@ -319,11 +319,18 @@ let rec string_of_exp pr e =
       match e1 with
       | Var _ | Neg _ -> "-" ^ string_of_exp 0 e1 ^ ""
       | _ -> "-(" ^ string_of_exp 0 e1 ^ ")")
+;;
 
 (*
 the most complicated test case:
 string_of_exp @@ default_parser "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -( b - -d) k)";;
 *)
+
+(
+  string_of_exp 0
+    (parse_algebra "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -( b - -d) k)")
+    |> print_endline
+) [@ocamlformat "disable"]
 
 type 'a formula =
   | False
@@ -792,7 +799,8 @@ let ( |-> ), combine =
   in
   (( |-> ), combine)
 
-let ( |=> ) = fun x y -> (x |-> y) undefined;;
+let ( |=> ) = fun x y -> (x |-> y) undefined
+let kk = fun x y -> (x, y);;
 
 psubst
   (P "p" |=> parse_prop_formula "p /\\ q")
@@ -858,6 +866,4 @@ print_prop_formula @@ psimplify
 
 let negative = function Not _ -> true | _ -> false
 let positive lit = not (negative lit)
-
-let negate = function (Not p) -> p | p -> Not p;;
-
+let negate = function Not p -> p | p -> Not p;;

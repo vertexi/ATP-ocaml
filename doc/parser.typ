@@ -283,6 +283,6 @@ DT中每条边的垂直平分线的交点连成多边形就是VT，连接VT中�
   Density is the fraction of a region of space filled by the solid balls. If this region is *bounded*, this fraction is the ratio of the volume of the balls to the volume of the region. If any ball crosses the boundary of the region, only the part of the ball inside the region is used. If the region is *unbounded*, the density of the intersection of the region with a ball of radius R is calculated, and the density of the full region is defined as the lim sup over R.
 ]
 
-
+密度->饱和堆积->构建平铺多边形->推导平铺多边形密度->求和
 
 #bibliography("bib.bib", style: "gb-7714-2015-numeric")
