@@ -1,4 +1,4 @@
-(lang dune 3.15)
+(lang dune 3.18)
 
 (name ocamlplay)
 
@@ -21,7 +21,8 @@
  (name ocamlplay)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune)
+ (depends ocaml dune camlp5)
+ (allow_empty)
  (tags
   (topics "to describe" your project)))
 

@@ -11,7 +11,8 @@ doc: "https://url/to/documentation"
 bug-reports: "https://github.com/username/reponame/issues"
 depends: [
   "ocaml"
-  "dune" {>= "3.15"}
+  "dune" {>= "3.18"}
+  "camlp5"
   "odoc" {with-doc}
 ]
 build: [
@@ -29,3 +30,4 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/username/reponame.git"
+x-maintenance-intent: ["(latest)"]

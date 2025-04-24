@@ -194,7 +194,7 @@ and parse_formula (ifn, afn) vs inp =
     inp
 ```
 
-下面的代码实现了对所有可能的布尔变量组合表示式求值，对`ats`原子变量表遍历，每个变量要么true，要么false，`let v' t q = if q = p then t else v q in`这个实现了原子变量集赋值函数。`onallvaluations`最终会执行$2^n$次，实现所有排列组合表达式求解。
+下面的代码实现了对所有可能的布尔变量组合表示式求值，对`ats`原子变量表遍历，每个变量要么true，要么false，```ocaml let v' t q = if q = p then t else v q in```这个实现了原子变量集赋值函数。`onallvaluations`最终会执行$2^n$次，实现所有排列组合表达式求解。
 
 ```ocaml
 let rec onallvaluations evalformula v ats =

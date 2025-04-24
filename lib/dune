@@ -1,2 +1,6 @@
 (library
- (name ocamlplay))
+ (name qa)
+ ; (libraries camlp5 fmt)
+ ; (flags (:standard -pp camlp5o -I +camlp5))
+ ; (preprocess (action (run not-ocamlfind preprocess -package camlp5.pr_o -syntax camlp5o %{input-file})))
+)

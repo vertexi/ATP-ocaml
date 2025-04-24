@@ -328,9 +328,14 @@ string_of_exp @@ default_parser "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^
 
 (
   string_of_exp 0
-    (parse_algebra "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -( b - -d) k)")
+    (
+      parse_algebra "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -( b - -d) k)"
+    )
     |> print_endline
 ) [@ocamlformat "disable"]
+;;
+
+parse_algebra "b5^(10 kk2) + x_1 - (y_2 - z) k (1 - 3 x + (2y^xy)^ -bb - -b -z -y -k -c -(b - -d) k)" [@ocamlformat "disable"]
 
 type 'a formula =
   | False
@@ -416,7 +421,7 @@ and parse_formula (ifn, afn) vs inp =
              (parse_atomic_formula (ifn, afn) vs))))
     inp
 
-let parse_propvar vs inp =
+let parse_propvar _ inp =
   match inp with
   | p :: oinp when p <> "(" -> (Atom (P p), oinp)
   | _ -> failwith "parse_propvar"
@@ -437,7 +442,7 @@ let bracket p n f x y =
 
 let rec strip_quant fm =
   match fm with
-  | Forall (x, (Forall (y, p) as yp)) | Exists (x, (Exists (y, p) as yp)) ->
+  | Forall (x, (Forall (_, _) as yp)) | Exists (x, (Exists (_, _) as yp)) ->
       let xs, q = strip_quant yp in
       (x :: xs, q)
   | Forall (x, p) | Exists (x, p) -> ([ x ], p)
@@ -461,8 +466,8 @@ let print_formula pfn =
     | Or (p, q) -> bracket (pr > 6) 0 (print_infix 6 "\\/") p q
     | Imp (p, q) -> bracket (pr > 4) 0 (print_infix 4 "==>") p q
     | Iff (p, q) -> bracket (pr > 2) 0 (print_infix 2 "<=>") p q
-    | Forall (x, p) -> bracket (pr > 0) 2 print_qnt "forall" (strip_quant fm)
-    | Exists (x, p) -> bracket (pr > 0) 2 print_qnt "exists" (strip_quant fm)
+    | Forall (_, _) -> bracket (pr > 0) 2 print_qnt "forall" (strip_quant fm)
+    | Exists (_, _) -> bracket (pr > 0) 2 print_qnt "exists" (strip_quant fm)
   and print_qnt qname (bvs, bod) =
     print_string qname;
     do_list
@@ -493,9 +498,10 @@ let print_qformula pfn fm =
   print_formula pfn fm;
   close_box ();
   print_string ">>";
-  close_box ()
+  close_box ();
+  print_newline ()
 
-let print_propvar prec p = print_string (pname p)
+let print_propvar _ p = print_string (pname p)
 let print_prop_formula = print_qformula print_propvar
 
 let mk_and p q = And (p, q)
@@ -584,7 +590,9 @@ let sort ord =
     | l, [ s1 ] -> mergepairs (s1 :: l) []
     | l, s1 :: s2 :: ss -> mergepairs (merge ord s1 s2 :: l) ss
   in
-  fun l -> if l = [] then [] else mergepairs [] (map (fun x -> [ x ]) l)
+  fun l -> if l = [] then [] else mergepairs [] (map (fun x -> [ x ]) l);;
+
+let ss = sort ( < ) in ss [3;2;1];;
 
 (* let setify =
   let rec canonical lis =
@@ -691,8 +699,8 @@ let applyd =
     in
     look f
 
-let apply f = applyd f (fun x -> failwith "apply")
-let tryapplyd f a d = applyd f (fun x -> d) a
+let apply f = applyd f (fun _ -> failwith "apply")
+let tryapplyd f a d = applyd f (fun _ -> d) a
 let tryapplyl f x = tryapplyd f x []
 let psubst subfn = onatoms (fun p -> tryapplyd subfn p (Atom p))
 
@@ -703,9 +711,9 @@ let ( |-> ), combine =
     let p = p1 land (b - 1) in
     if p1 land b = 0 then Branch (p, b, t1, t2) else Branch (p, b, t2, t1)
   in
-  let rec define_list ((x, y) as xy) l =
+  let rec define_list ((x, _) as xy) l =
     match l with
-    | ((a, b) as ab) :: t ->
+    | ((a, _) as ab) :: t ->
         let c = compare x a in
         if c = 0 then xy :: t
         else if c < 0 then xy :: l
@@ -747,7 +755,7 @@ let ( |-> ), combine =
           let l = combine_list op z l1 l2 in
           if l = [] then Empty else Leaf (h1, l)
         else newbranch h1 t1 h2 t2
-    | (Leaf (k, lis) as lf), (Branch (p, b, l, r) as br) ->
+    | (Leaf (k, _) as lf), (Branch (p, b, l, r) as br) ->
         if k land (b - 1) = p then
           if k land b = 0 then
             match combine op z lf l with
@@ -758,7 +766,7 @@ let ( |-> ), combine =
             | Empty -> l
             | r' -> Branch (p, b, l, r')
         else newbranch k lf p br
-    | (Branch (p, b, l, r) as br), (Leaf (k, lis) as lf) ->
+    | (Branch (p, b, l, r) as br), (Leaf (k, _) as lf) ->
         if k land (b - 1) = p then
           if k land b = 0 then
             match combine op z l lf with
@@ -867,3 +875,13 @@ print_prop_formula @@ psimplify
 let negative = function Not _ -> true | _ -> false
 let positive lit = not (negative lit)
 let negate = function Not p -> p | p -> Not p;;
+
+(* <<p /\\ q ==> q /\\ r>> *)
+let debugging = true
+
+#define debug(args) if debugging then print_endline args else ()
+
+let () = print_endline ""
+let () = print_endline "Hello, World!!"
+let () = debug("Hello, World!!")
+let () = print_endline ""
