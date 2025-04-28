@@ -1,7 +1,12 @@
 (* #require "camlp5";;
 #load "camlp5o.cma";; *)
+#use "topfind.camlp5";;
+#camlp5o ;;
 
-#use "bin/main.ml"
+#require "fmt";;
+#use "_build/default/bin/main.pp.ml"
+
+(* #use "bin/streams.ml" *)
 
 (* #trace parse_atom;;
 #trace parse_product;;

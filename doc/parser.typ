@@ -16,19 +16,22 @@
 
 #import "@preview/quick-maths:0.2.1": shorthands
 
-// #show: shorthands.with(
-//   ($+-$, $plus.minus$),
-//   ($|-$, math.tack),
-//   ($<=$, math.arrow.l.double), // Replaces '≤'
-// )
+#show: shorthands.with(
+  ($+-$, $plus.minus$),
+  ($|-$, math.tack),
+  ($|=$, sym.models),
+  // ($<=$, math.arrow.l.double), // Replaces '≤'
+)
 
 // remove cjk space in line break
 #import "@preview/cjk-unbreak:0.1.0": *
 #show: remove-cjk-break-space
 
+#set heading(numbering: "1.1")
 #show heading.where(level: 1): it => text(size: 24pt, it)
 #show heading.where(level: 2): it => text(size: 20pt, it)
 #show heading.where(level: 3): it => text(size: 18pt, it)
+#show heading.where(level: 4): it => text(size: 16pt, it)
 
 #set par(first-line-indent: (amount: 2em, all: true))
 #show image: it => {
@@ -39,7 +42,7 @@
 
 #set text(size: 14pt)
 
-= Notes
+= Notes From Handbook of Pratical Logic and Automated Reasoning
 
 == Parser for propositional logic formular
 
@@ -208,6 +211,84 @@ let rec onallvaluations evalformula v ats =
 If p ⇒ q is a tautology, i.e. any valuation that satisfies p also satisfies q, we say that q is a logical consequence of p. If p ⇔ q is a tautology, i.e. a valuation satisfies p if and only if it satisfies q, we say that p and q are logically equivalent. Many important tautologies naturally take this latter form, and trivially if p is a tautology then so is p ⇔ T.
 
 $p,q$逻辑等价就是$p<=>q$始终为真，即$p<=>q$为重言式。$p=>q$是重言式就意味着q是p的后果，两者有因果关系。
+
+= From UCLA Automated Reasoning
+
+== Lecture 1A
+
+- syntax -> restriction (normal form)
+- sematics -> meaning (et. relation and consistency)
+
+=== syntax
+
+- literal: either Atomic boolean variable or negation of one. The negative literals are as form of $not p$, otherwises are positive literals like $p$.
+
+- sentence: like NNF in Handbook: conjuction or disjuction of literals.(The boolean constant can be easily eliminated. $p and T <=> p, p and F <=>F$...)
+
+- term: conjuction of literals $p and q and r$
+
+- clause: disjuction of literals $p or q or r$
+
+Two normal Forms
+
+- Conjunctive normal form (CNF): conjuction of clauses $(p or q) and (r or q) and (p or r) and ...$
+
+- Disjunctive normal form (DNF): disjuction of terms $(p and q) or (p and r) or (r and q) or ...$
+
+The normal form is universal which means any proposition formula can be expressed in normal form.
+
+== Lecture 1B
+
+=== sematics
+#let mods = "mods"
+
+- world $w$: boolean variable value pairs ($p -> T, q -> F, ...$)
+
+- models of $p$ $mods(p)$: a set of worlds which satisfies p (which implies the meaning of $p$). $mods(p) = {w: w |= p}$
+
+The models of compound sentence can be obtained by doing set operation on models per sentence.
+
+- $mods(p and q) = mods(p) inter mods(q)$
+
+- $mods(p or q) = mods(p) union mods(q)$
+
+- $mods(not p) = overline(mods(p))$
+
+- $p |- q$ as I can derive $q$ from $p$. derive means applying inference rules.
+
+=== properties
+
+- consistency: satisfiable -> $mods(p) != nothing$
+- valid: tautology -> $mod(p) = W, W={w}$
+
+=== Relationships
+
+- $p, q$ logically equivalent -> $mods(p) = mods(q)$ in Handbook $p <=> q$ if a tautology.
+  - contraposition: $p => q, not p => not q$
+- $q, q$ are mutually exclusive: $mods(p) inter mods(q) = nothing, mods(p and q) = nothing$
+- $p, q$ are exhaustive: $mods(p) union mods(q) = W "or" mods(p or q) = W$, which also means $p or q$ is valid or tautology.
+
+==== entailment(implication) interesting stuff interpret implication as proper subset
+
+- $p |=(=>) q$ can be understand as the *cases satisfy p also satisfy q*, which can be expressed as $mods(p) subset.eq mods(q)$
+
+- p is true: p is valid tautology
+
+- p is false: p is inconsistent
+
+=== monotonicity
+
+$(p => q) => (p and r => q)$ can be deduct as
+$ mods(p) subset.eq mods(q) => mods(p and r) subset.eq mods(q) $
+$ mods(p and r) = mods(p) inter mods(r) => mods(p and r) subset mods(p) $
+
+=== Summary
+
+The sematics is basic rule that all operations have to be restricted with it.
+The properties is the meaning of result(world input and get formula output) of single sentence or proposition formula.
+The relationship is relation between two meaning or result of two sentence.
+
+
 
 == About Kepler Conjucture Proof
 

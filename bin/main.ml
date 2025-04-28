@@ -641,6 +641,8 @@ let rec onallvaluations evalformula v ats =
 let rec itlist f l b = match l with [] -> b | h :: t -> f h (itlist f t b)
 
 let print_truthtable fm =
+  print_newline ();
+  fm |> print_prop_formula;
   let ats = atoms fm in
   let width = itlist (fun a b -> max (String.length @@ pname a) b) ats 5 + 1 in
   let fixw s = s ^ String.make (width - String.length s) ' ' in
@@ -659,12 +661,14 @@ let print_truthtable fm =
   print_newline ();
   let _ = onallvaluations mk_row (fun _ -> false) ats in
   print_string separator;
-  print_newline ()
+  print_newline ();
+  print_newline ();;
 
 (* "p /\\ q" |> parse_prop_formula |> print_truthtable;; *)
 
 (* tautology *)
 (* "p /\\ q ==> p \\/ q" |> parse_prop_formula |> print_truthtable;; *)
+"((p ==> q) ==> p) ==> p" |> parse_prop_formula |> print_truthtable;;
 
 let tautology fm = onallvaluations (eval fm) (fun _ -> false) (atoms fm)
 let unsatisfiable fm = tautology @@ Not fm
@@ -816,6 +820,8 @@ psubst
 |> print_prop_formula
 ;;
 
+print_truthtable @@ parse_prop_formula "p <=> (q <=> r) <=> (p <=> q) <=> r";;
+
 forall tautology
   (map parse_prop_formula
      [
@@ -837,7 +843,7 @@ let rec dual fm =
   | _ -> failwith "dual: contains ==> or <=> is illegal"
 ;;
 
-dual (parse_prop_formula "p /\\ q")
+"p /\\ q" |> parse_prop_formula |> dual |> print_prop_formula;;
 
 let psimplify1 fm =
   match fm with
@@ -872,9 +878,64 @@ print_prop_formula @@ psimplify
 print_prop_formula @@ psimplify
 @@ parse_prop_formula "((x ==> y) ==> true \\/ ~false)"
 
-let negative = function Not _ -> true | _ -> false
+let negative = function Not Atom _ -> true | _ -> false
 let positive lit = not (negative lit)
 let negate = function Not p -> p | p -> Not p;;
+
+let rec nnf fm =
+  match fm with
+  | True -> True
+  | False -> False
+  | Atom p -> Atom p
+  | And (p, q) -> And (nnf p , nnf q)
+  | Or (p, q) -> Or (nnf p , nnf q)
+  | Imp (p, q) -> Or (nnf (Not p), nnf q)
+  | Iff (p, q) -> Or (And (nnf p, nnf q), And (nnf (Not p), nnf (Not q)))
+  | Not (Not p) -> nnf p
+  | Not (And (p, q)) -> Or (nnf (Not p), nnf (Not q))
+  | Not (Or (p, q)) -> And (nnf (Not p), nnf (Not q))
+  | Not (Imp (p, q)) -> And (nnf p, nnf (Not q))
+  | Not (Iff (p, q)) -> And (Or (nnf (Not p), nnf (Not q)), Or (nnf p, nnf q))
+  | Not True -> False
+  | Not False -> True
+  | Not (Atom p) -> Not (Atom p)
+  | _ -> print_prop_formula fm; failwith "not implement in nnf"
+
+let nnf fm = nnf(psimplify fm);;
+
+print_newline ();
+print_prop_formula @@ nnf @@ parse_prop_formula @@ "(p <=> q) <=> ~(r ==> s)";;
+let fm = parse_prop_formula @@ "(p <=> q) <=> ~(r ==> s)" in
+  let pt x = match x with | true -> print_endline "true" | _ -> print_endline "false" in
+  pt @@ tautology @@ (Iff (fm, nnf fm));;
+
+
+let rec nenf fm =
+  match fm with
+  | True -> True
+  | False -> False
+  | Atom p -> Atom p
+  | And (p, q) -> And (nenf p, nenf q)
+  | Or (p, q) -> Or (nenf p, nenf q)
+  | Imp (p, q) -> Or (Not (nenf p), nenf q)
+  | Iff (p, q) -> Iff (nenf p, nenf q)
+  | Not (Not p) -> nenf p
+  | Not And (p, q) -> Or (nenf (Not p), nenf (Not q))
+  | Not Or (p, q) -> And (nenf (Not p), nenf (Not q))
+  | Not Imp (p, q) -> And (nenf p, nenf (Not q))
+  | Not Iff (p, q) -> Iff (nenf (Not p), nenf q)
+  | Not True -> False
+  | Not False -> True
+  | Not (Atom p) -> Not (Atom p)
+  | _ -> print_prop_formula fm; failwith "not implement in nenf"
+
+let nenf fm = nenf(psimplify fm);;
+
+print_newline ();
+print_prop_formula @@ nenf @@ parse_prop_formula @@ "(p <=> q) <=> ~(r ==> s)";;
+let fm = parse_prop_formula @@ "(p <=> q) <=> ~(r ==> s)" in
+  let pt x = match x with | true -> print_endline "true" | _ -> print_endline "false" in
+  pt @@ tautology @@ (Iff (fm, nenf fm));;
 
 (* <<p /\\ q ==> q /\\ r>> *)
 let debugging = true
